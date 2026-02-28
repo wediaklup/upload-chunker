@@ -41,6 +41,12 @@ func uploadChunk(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
+	password := r.FormValue("passphrase")
+	if password != passphrase {
+		http.Error(w, "invalid passphrase", 401)
+		return
+	}
+
 	uploadUuid := r.FormValue("upload_id")
 	fileUuid := r.FormValue("file_id")
 	chunkNumber := r.FormValue("chunk_number")
@@ -79,6 +85,12 @@ func finalizeFile(w http.ResponseWriter, r *http.Request) {
 	err := r.ParseMultipartForm(4096)
 	if err != nil {
 		http.Error(w, err.Error(), 400)
+		return
+	}
+
+	password := r.FormValue("passphrase")
+	if password != passphrase {
+		http.Error(w, "invalid passphrase", 401)
 		return
 	}
 
@@ -148,9 +160,9 @@ func index(w http.ResponseWriter, r *http.Request) {
 	</head>
 	<body>
 		<input type="password" id="password-field" placeholder="Passwort" /> <br>
-		<input type="file" id="files-field" /> <br>
+		<input type="file" id="files-field" multiple /> <br>
 		<button type="button" onclick="upload()">Hochladen</button> <br> <br>
-		<div id="status-field"></div>
+		<div id="status-field">idle</div>
 	</body>
 	<script>
 		const statusField = document.getElementById("status-field");
@@ -169,9 +181,9 @@ func index(w http.ResponseWriter, r *http.Request) {
 				const chunk = f.slice(start, end);
 				
 				const formData = new FormData();
+				formData.append("passphrase", passphrase);
 				formData.append("upload_id", uploadid);
 				formData.append("file_id", fileid);
-				formData.append("passphrase", passphrase);
 				formData.append("chunk_number", i);
 				formData.append("file", chunk);
 
@@ -182,6 +194,7 @@ func index(w http.ResponseWriter, r *http.Request) {
 			}
 
 			const formData = new FormData();
+			formData.append("passphrase", passphrase);
 			formData.append("upload_id", uploadid);
 			formData.append("file_id", fileid);
 			formData.append("filename", f.name);
@@ -201,6 +214,7 @@ func index(w http.ResponseWriter, r *http.Request) {
 			}
 
 			alert("upload complete");
+			statusField.innerHTML = "idle";
 		}
 	</script>
 </html>
