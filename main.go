@@ -35,6 +35,11 @@ func getUuid(w http.ResponseWriter, r *http.Request) {
 }
 
 func uploadChunk(w http.ResponseWriter, r *http.Request) {
+	if r.Method != "POST" {
+		http.Error(w, "invalid method", http.StatusMethodNotAllowed)
+		return
+	}
+
 	err := r.ParseMultipartForm(0)
 	if err != nil {
 		http.Error(w, err.Error(), 400)
@@ -43,6 +48,7 @@ func uploadChunk(w http.ResponseWriter, r *http.Request) {
 
 	password := r.FormValue("passphrase")
 	if password != passphrase {
+		fmt.Println("unauthorized access")
 		http.Error(w, "invalid passphrase", 401)
 		return
 	}
@@ -82,6 +88,11 @@ func uploadChunk(w http.ResponseWriter, r *http.Request) {
 }
 
 func finalizeFile(w http.ResponseWriter, r *http.Request) {
+	if r.Method != "POST" {
+		http.Error(w, "invalid method", http.StatusMethodNotAllowed)
+		return
+	}
+
 	err := r.ParseMultipartForm(4096)
 	if err != nil {
 		http.Error(w, err.Error(), 400)
@@ -90,6 +101,7 @@ func finalizeFile(w http.ResponseWriter, r *http.Request) {
 
 	password := r.FormValue("passphrase")
 	if password != passphrase {
+		fmt.Println("unauthorized access")
 		http.Error(w, "invalid passphrase", 401)
 		return
 	}
@@ -147,7 +159,7 @@ func index(w http.ResponseWriter, r *http.Request) {
 	}
 
 	if r.Method != "GET" {
-		http.Error(w, "invalid method", 413)
+		http.Error(w, "invalid method", http.StatusMethodNotAllowed)
 		return
 	}
 
@@ -187,10 +199,15 @@ func index(w http.ResponseWriter, r *http.Request) {
 				formData.append("chunk_number", i);
 				formData.append("file", chunk);
 
-				await fetch("/upload-chunk", {
+				const resp = await fetch("/upload-chunk", {
 					method: "POST",
 					body: formData
 				});
+
+				if (!resp.ok) {
+					const errorText = await resp.text();
+					throw new Error("Chunk upload failed: " + resp.status + " " + errorText);
+				}
 			}
 
 			const formData = new FormData();
@@ -199,18 +216,31 @@ func index(w http.ResponseWriter, r *http.Request) {
 			formData.append("file_id", fileid);
 			formData.append("filename", f.name);
 
-			await fetch("/finalize-file", {
+			const resp = await fetch("/finalize-file", {
 				method: "POST",
 				body: formData
 			});
+
+			if (!resp.ok) {
+				const errorText = await resp.text();
+				throw new Error("Finalization failed: " + resp.status.parseInt() + " " + errorText);
+			}
 		}
 		
 		async function upload() {
 			const uploadid = crypto.randomUUID();
 			const files = document.getElementById("files-field").files;
 			const passphrase = document.getElementById("password-field").value;
+
 			for (let i = 0; i < files.length; i++) {
-				await uploadFile(uploadid, files[i], passphrase);
+				try {
+					await uploadFile(uploadid, files[i], passphrase);
+				} catch (err) {
+					console.error("Network or server error:", err);
+					statusField.innerHTML = err;
+					alert("upload failed");
+					return;
+				}
 			}
 
 			alert("upload complete");
