@@ -1,0 +1,116 @@
+.Dd 28 February 2026
+.Dt UPLOADCHUNKERD 1
+.Os
+.Sh NAME
+.Nm uploadchunkerd
+.Nd simple HTTP chunked file upload server
+.Sh SYNOPSIS
+.Nm
+.Sh DESCRIPTION
+.Nm
+is a minimal HTTP server that accepts large file uploads in chunks
+via multipart/form-data POST requests and concatenates them into
+final files on the server.
+
+The service is intended for environments where large files
+(e.g. multi-gigabyte uploads) must be transferred reliably over HTTP
+without requiring a single monolithic request.
+
+Uploads are authenticated using a shared passphrase supplied
+via environment variable.
+
+The server provides the following endpoints:
+
+.Bl -tag -width "/finalize-file"
+.It Pa /
+Serves a minimal HTML interface for browser-based uploads.
+Only responds to GET.
+.It Pa /get-uuid
+Returns a freshly generated UUID as plain text.
+.It Pa /upload-chunk
+Accepts a multipart/form-data POST containing a file chunk and metadata.
+Chunks are stored temporarily on disk.
+.It Pa /finalize-file
+Concatenates all uploaded chunks in ascending numeric order
+into the final file and removes temporary chunk data.
+.El
+
+.Sh PROTOCOL
+The intended upload sequence is:
+
+.Bl -enum
+.It
+Generate an upload UUID.
+.It
+For each file:
+.Bl -enum
+.It
+Generate a file UUID.
+.It
+Split the file into fixed-size chunks.
+.It
+POST each chunk to Pa /upload-chunk .
+.It
+POST metadata to Pa /finalize-file to concatenate chunks.
+.El
+.El
+
+Chunks must be numbered consecutively starting at 0.
+Concatenation stops at the first missing chunk.
+
+.Sh ENVIRONMENT
+.Bl -tag -width "UPLOADCHUNKER_PASSPHRASE"
+.It Ev UPLOADCHUNKER_BINDPORT
+TCP port to bind to.
+Default: 9980.
+.It Ev UPLOADCHUNKER_PASSPHRASE
+Required shared secret for authenticating uploads.
+The server exits if this variable is not set.
+.El
+
+.Sh FILES
+.Bl -tag -width "./uploads/"
+.It Pa ./uploads/
+Temporary chunk storage.
+Directory structure:
+.Pp
+.Dl uploads/<upload_id>/<file_id>/chunk_<n>
+.It Pa ./final/
+Final concatenated output files.
+Files are written as:
+.Pp
+.Dl final/<file_id>_<original_filename>
+.El
+
+.Sh SECURITY CONSIDERATIONS
+Authentication is based solely on a shared passphrase transmitted
+in multipart form fields. No TLS is provided by this program.
+It is recommended to run
+.Nm
+behind a reverse proxy (e.g. nginx) with HTTPS enabled.
+
+No filename sanitization beyond prefixing with the file UUID
+is performed. Deployments should ensure that the
+final storage directory is trusted and properly permissioned.
+
+.Sh EXIT STATUS
+.Ex -std
+
+.Sh EXAMPLES
+Run on default port:
+
+.Dl UPLOADCHUNKER_PASSPHRASE=secret uploadchunkerd
+
+Run on custom port:
+
+.Dl UPLOADCHUNKER_BINDPORT=8080 UPLOADCHUNKER_PASSPHRASE=secret uploadchunkerd
+
+.Sh SEE ALSO
+.Xr http 7 ,
+.Xr uuid 3
+
+.Sh AUTHORS
+wédiaklup <wediaklup@planteam.org>
+
+Written in Go using the standard library and
+the github.com/google/uuid package.

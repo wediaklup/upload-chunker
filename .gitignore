@@ -1,2 +1,5 @@
 uploads/
 final/
+pkg/
+src/
+*.tar.*
